@@ -1,4 +1,4 @@
-#include <SDL_video.h>
+#include <SDL2/SDL_events.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -58,6 +58,8 @@ uint8_t buildinFont[80] = {
     0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 };
 
+uint8_t keyboardState[16];
+
 SDL_Window* window;
 SDL_Renderer* renderer;
 
@@ -108,7 +110,7 @@ int chip8_execute(chip8_t* chip8){
 			if(nibble3 == 0xE && nibble4 == 0xE){
 				if(chip8->SP == 0) return -1;
 				chip8->SP--;
-				chip8->PC = chip8->stack[chip8->SP];
+				chip8->PC = chip8->stack[chip8->SP] + 2;
 				return 0;
 			} else if(nibble3 == 0xE){
 				for(int i = 0; i < 32*64; i++){
@@ -127,7 +129,7 @@ int chip8_execute(chip8_t* chip8){
 			chip8->stack[chip8->SP] = chip8->PC;
 			chip8->PC = ((nibble2 << 8) | (nibble3 << 4) | (nibble4));
 			chip8->SP++;
-			break;
+			return 0;
 		}
 		case 3:
 		{
@@ -151,13 +153,8 @@ int chip8_execute(chip8_t* chip8){
 		}
 		case 7:
 		{
-			if(chip8->V[nibble2] + ((nibble3 << 4) | (nibble4)) > 256){
-				chip8->V[0xF] = 1;
-				chip8->V[nibble2] = ((nibble3 << 4) | (nibble4)) - (255-chip8->V[nibble2]) - 1; 
-			} else {
-				chip8->V[0xF] = 0;
-				chip8->V[nibble2] = chip8->V[nibble2] + ((nibble3 << 4) | (nibble4));
-			}
+			if(chip8->V[nibble2] + ((nibble3 << 4) | (nibble4)) > 256) chip8->V[nibble2] = ((nibble3 << 4) | (nibble4)) - (255-chip8->V[nibble2]) - 1;
+			else chip8->V[nibble2] = chip8->V[nibble2] + ((nibble3 << 4) | (nibble4));
 			break;
 		}
 		case 8:
@@ -171,31 +168,37 @@ int chip8_execute(chip8_t* chip8){
 			} else if(nibble4 == 3){
 				chip8->V[nibble2] ^= chip8->V[nibble3];
 			} else if(nibble4 == 4){
-				chip8->V[nibble2] = (chip8->V[nibble2] + chip8->V[nibble3]) & 0xFF;
-				if(chip8->V[nibble2] + chip8->V[nibble3] > 255) chip8->V[0xF] = 1;
-				else chip8->V[0xF] = 0;
+				if(chip8->V[nibble2] + chip8->V[nibble3] > 256){
+					chip8->V[nibble2] = chip8->V[nibble3] - (255-chip8->V[nibble2]) - 1;
+					chip8->V[0xF] = 1;
+				} else {
+					chip8->V[nibble2] = chip8->V[nibble2] + chip8->V[nibble3];
+					chip8->V[0xF] = 0;
+				}
 			} else if(nibble4 == 5){
 				if(chip8->V[nibble2] >= chip8->V[nibble3]){
 					chip8->V[nibble2] -= chip8->V[nibble3];
 					chip8->V[0xF] = 1;
 				} else {
-					chip8->V[nibble2] = 0x100 - (chip8->V[nibble2] - chip8->V[nibble3]);
+					chip8->V[nibble2] = 0x100 - (chip8->V[nibble3] - chip8->V[nibble2]);
 					chip8->V[0xF] = 0;
 				}
 			} else if(nibble4 == 6){
-				chip8->V[0xF] = (chip8->V[nibble2] & 1);
-				chip8->V[nibble2] /= 2; 
+				uint8_t lsb = chip8->V[nibble2] & 1;
+				chip8->V[nibble2] /= 2;
+				chip8->V[0xF] = lsb;
 			} else if(nibble4 == 7){
 				if(chip8->V[nibble3] >= chip8->V[nibble2]){
-					chip8->V[nibble3] -= chip8->V[nibble2];
+					chip8->V[nibble2] = chip8->V[nibble3] - chip8->V[nibble2];
 					chip8->V[0xF] = 1;
 				} else {
-					chip8->V[nibble3] = 0x100 - (chip8->V[nibble3] - chip8->V[nibble2]);
+					chip8->V[nibble2] = 0x100 - (chip8->V[nibble2] - chip8->V[nibble3]);
 					chip8->V[0xF] = 0;
-				}
+				}	
 			} else if(nibble4 == 0xE){
-				chip8->V[0xF] = ((chip8->V[nibble2] >> 7) & 1);
+				uint8_t msb = ((chip8->V[nibble2] >> 7) & 1);
 				chip8->V[nibble2] *= 2;
+				chip8->V[0xF] = msb;
 			} else {
 				return -1;	
 			}
@@ -214,7 +217,7 @@ int chip8_execute(chip8_t* chip8){
 		case 0xB:
 		{
 			chip8->PC = ((nibble2 << 8) | (nibble3 << 4) | (nibble4)) + chip8->V[0];
-			break;
+			return 0;
 		}
 		case 0xC:
 		{
@@ -239,7 +242,7 @@ int chip8_execute(chip8_t* chip8){
 				if(y+i > 31) break;
 				for(int j = 0; j < 8; j++){
 					if(x+j > 63) break;
-					if(chip8->displayFB[64*(y + i)+x+j] == 1 && ((chip8->memory[chip8->I+i] & (0b10000000 >> j)) >> (7-j)) == 1) chip8->V[0xF] = 1;
+					if((chip8->displayFB[64*(y + i)+x+j] & 1) && (((chip8->memory[chip8->I+i] & (0b10000000 >> j)) >> (7-j)) & 1)) chip8->V[0xF] = 1;
 					chip8->displayFB[64*(y + i)+x+j] ^= ((chip8->memory[chip8->I+i] & (0b10000000 >> j)) >> (7-j));
 				}
 			}
@@ -249,9 +252,11 @@ int chip8_execute(chip8_t* chip8){
 		case 0xE:
 		{
 			if(nibble3 == 9 && nibble4 == 0xE){
-				return -1;
+				if(chip8->V[nibble2] > 0xF) return -1;
+				if(keyboardState[chip8->V[nibble2]]) chip8->PC += 2;
 			} else if(nibble3 == 0xA && nibble4 == 1){
-				return -1;
+				if(chip8->V[nibble2] > 0xF) return -1;
+				if(!keyboardState[chip8->V[nibble2]]) chip8->PC += 2;
 			}
 			break;
 		}
@@ -288,7 +293,7 @@ int chip8_execute(chip8_t* chip8){
 	}
 
 	// Subtract 1 from DT/ST
-	usleep(16);
+	usleep(16660);
 	if(chip8->DT > 0) chip8->DT--;
 	if(chip8->ST > 0) chip8->ST--;
 	
@@ -373,6 +378,116 @@ int main(int argc, char** argv){
 		while(SDL_PollEvent(&event)){
 			if(event.type == SDL_QUIT){
 				quit = true;
+			}
+
+			if(event.type == SDL_KEYDOWN){
+				SDL_KeyboardEvent kbEvent = event.key;
+				switch(kbEvent.keysym.sym){
+					case SDLK_0:
+						keyboardState[0] = 1;
+						break;
+					case SDLK_1:
+						keyboardState[1] = 1;
+						break;
+					case SDLK_2:
+						keyboardState[2] = 1;
+						break;
+					case SDLK_3:
+						keyboardState[3] = 1;
+						break;
+					case SDLK_4:
+						keyboardState[4] = 1;
+						break;
+					case SDLK_5:
+						keyboardState[5] = 1;
+						break;
+					case SDLK_6:
+						keyboardState[6] = 1;
+						break;
+					case SDLK_7:
+						keyboardState[7] = 1;
+						break;
+					case SDLK_8:
+						keyboardState[8] = 1;
+						break;
+					case SDLK_9:
+						keyboardState[9] = 1;
+						break;
+					case SDLK_a:
+						keyboardState[10] = 1;
+						break;
+					case SDLK_b:
+						keyboardState[11] = 1;
+						break;
+					case SDLK_c:
+						keyboardState[12] = 1;
+						break;
+					case SDLK_d:
+						keyboardState[13] = 1;
+						break;
+					case SDLK_e:
+						keyboardState[14] = 1;
+						break;
+					case SDLK_f:
+						keyboardState[15] = 1;
+						break;
+					default:
+						break;
+				}
+			} else if(event.type == SDL_KEYUP){
+				SDL_KeyboardEvent kbEvent = event.key;
+				switch(kbEvent.keysym.sym){
+					case SDLK_0:
+						keyboardState[0] = 0;
+						break;
+					case SDLK_1:
+						keyboardState[1] = 0;
+						break;
+					case SDLK_2:
+						keyboardState[2] = 0;
+						break;
+					case SDLK_3:
+						keyboardState[3] = 0;
+						break;
+					case SDLK_4:
+						keyboardState[4] = 0;
+						break;
+					case SDLK_5:
+						keyboardState[5] = 0;
+						break;
+					case SDLK_6:
+						keyboardState[6] = 0;
+						break;
+					case SDLK_7:
+						keyboardState[7] = 0;
+						break;
+					case SDLK_8:
+						keyboardState[8] = 0;
+						break;
+					case SDLK_9:
+						keyboardState[9] = 0;
+						break;
+					case SDLK_a:
+						keyboardState[10] = 0;
+						break;
+					case SDLK_b:
+						keyboardState[11] = 0;
+						break;
+					case SDLK_c:
+						keyboardState[12] = 0;
+						break;
+					case SDLK_d:
+						keyboardState[13] = 0;
+						break;
+					case SDLK_e:
+						keyboardState[14] = 0;
+						break;
+					case SDLK_f:
+						keyboardState[15] = 0;
+						break;
+					default:
+						break;
+				}
 			}
 		}
 
