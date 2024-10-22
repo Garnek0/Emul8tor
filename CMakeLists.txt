@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION "3.13")
 project("emul8tor")
 
 set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_FLAGS "-O3")
 
 find_package(SDL2 REQUIRED)
 
