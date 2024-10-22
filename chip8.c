@@ -1,3 +1,4 @@
+#include <SDL2/SDL_audio.h>
 #include <SDL2/SDL_events.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -24,38 +25,22 @@ typedef struct {
 } chip8_t;
 
 uint8_t buildinFont[80] = {
-    // Sprite for '0'
-    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
-    // Sprite for '1'
-    0x20, 0x60, 0x20, 0x20, 0x70, // 1
-    // Sprite for '2'
-    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
-    // Sprite for '3'
-    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
-    // Sprite for '4'
-    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
-    // Sprite for '5'
-    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
-    // Sprite for '6'
-    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
-    // Sprite for '7'
-    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
-    // Sprite for '8'
-    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
-    // Sprite for '9'
-    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
-    // Sprite for 'A'
-    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
-    // Sprite for 'B'
-    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
-    // Sprite for 'C'
-    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
-    // Sprite for 'D'
-    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
-    // Sprite for 'E'
-    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-    // Sprite for 'F'
-    0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+	0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+	0x20, 0x60, 0x20, 0x20, 0x70, // 1
+	0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+	0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+	0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+	0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+	0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+	0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+	0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+	0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+	0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+	0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+	0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+	0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+	0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+	0xF0, 0x80, 0xF0, 0x80, 0x80  // F 
 };
 
 uint8_t keyboardState[16];
@@ -88,21 +73,37 @@ int chip8_prepare_memory(chip8_t* chip8, const char* rompath){
 	return 0;
 }
 
+void chip8_display_update(chip8_t* chip8){
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+	SDL_RenderClear(renderer);
+
+	SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+
+	SDL_Rect rect;
+
+	for(int i = 0; i < 32; i++){
+		for(int j = 0; j < 64; j++){
+			if(chip8->displayFB[i*64 + j]){
+				rect.x = j*8;
+				rect.y = i*8;
+				rect.h = rect.w = 8;
+				SDL_RenderFillRect(renderer, &rect);
+			}
+		}
+	}
+
+	SDL_RenderPresent(renderer);
+}
+
 int chip8_execute(chip8_t* chip8){
 	uint8_t nibble1 = (chip8->memory[chip8->PC] & 0xF0) >> 4;
 	uint8_t nibble2 = (chip8->memory[chip8->PC] & 0x0F);
 	uint8_t nibble3 = (chip8->memory[chip8->PC+1] & 0xF0) >> 4;
 	uint8_t nibble4 = (chip8->memory[chip8->PC+1] & 0x0F);
 
-	printf("0x%x (0x%x)\n", chip8->PC, ((chip8->memory[chip8->PC] << 8) | chip8->memory[chip8->PC+1]));
-
-	printf("STATE:\n");
-	printf("V0-VF: ");
-	for(int i = 0; i < 16; i++){
-		printf("0x%x ", chip8->V[i]);
-	}
-	printf("\n");
-	printf("I: 0x%x\n", chip8->I);
+	static double totalSeconds = 0;
+	double secondsStart = clock();
+	double secondsStop;
 
 	switch(nibble1){
 		case 0:
@@ -111,7 +112,7 @@ int chip8_execute(chip8_t* chip8){
 				if(chip8->SP == 0) return -1;
 				chip8->SP--;
 				chip8->PC = chip8->stack[chip8->SP] + 2;
-				return 0;
+				chip8->PC -= 2;
 			} else if(nibble3 == 0xE){
 				for(int i = 0; i < 32*64; i++){
 					chip8->displayFB[i] = 0;
@@ -122,14 +123,16 @@ int chip8_execute(chip8_t* chip8){
 		case 1:
 		{
 			chip8->PC = ((nibble2 << 8) | (nibble3 << 4) | (nibble4));
-			return 0;
+			chip8->PC -= 2;
+			break;
 		}
 		case 2:
 		{
 			chip8->stack[chip8->SP] = chip8->PC;
 			chip8->PC = ((nibble2 << 8) | (nibble3 << 4) | (nibble4));
 			chip8->SP++;
-			return 0;
+			chip8->PC -= 2;
+			break;
 		}
 		case 3:
 		{
@@ -163,10 +166,13 @@ int chip8_execute(chip8_t* chip8){
 				chip8->V[nibble2] = chip8->V[nibble3];
 			} else if(nibble4 == 1){
 				chip8->V[nibble2] |= chip8->V[nibble3];
+				chip8->V[0xF] = 0; 
 			} else if(nibble4 == 2){
 				chip8->V[nibble2] &= chip8->V[nibble3];
+				chip8->V[0xF] = 0; 
 			} else if(nibble4 == 3){
 				chip8->V[nibble2] ^= chip8->V[nibble3];
+				chip8->V[0xF] = 0;
 			} else if(nibble4 == 4){
 				if(chip8->V[nibble2] + chip8->V[nibble3] > 256){
 					chip8->V[nibble2] = chip8->V[nibble3] - (255-chip8->V[nibble2]) - 1;
@@ -217,7 +223,8 @@ int chip8_execute(chip8_t* chip8){
 		case 0xB:
 		{
 			chip8->PC = ((nibble2 << 8) | (nibble3 << 4) | (nibble4)) + chip8->V[0];
-			return 0;
+			chip8->PC -= 2;
+			break;
 		}
 		case 0xC:
 		{
@@ -232,21 +239,19 @@ int chip8_execute(chip8_t* chip8){
 			size_t x = chip8->V[nibble2];
 			size_t y = chip8->V[nibble3];
 
-			printf("Sprite Draw (from 0x%x):\n", chip8->I);
-			printf("X: %d -> %d\n", x, x+8);
-			printf("Y: %d -> %d\n", y, y+nibble4);
-
 			chip8->V[0xF] = 0;
 
 			for(int i = 0; i < nibble4; i++){
-				if(y+i > 31) break;
+				uint8_t spriteRow = chip8->memory[chip8->I+i];
 				for(int j = 0; j < 8; j++){
-					if(x+j > 63) break;
-					if((chip8->displayFB[64*(y + i)+x+j] & 1) && (((chip8->memory[chip8->I+i] & (0b10000000 >> j)) >> (7-j)) & 1)) chip8->V[0xF] = 1;
-					chip8->displayFB[64*(y + i)+x+j] ^= ((chip8->memory[chip8->I+i] & (0b10000000 >> j)) >> (7-j));
+						int dispIndex = ((x + j)%64) + (((y + i)%32)*64);
+						uint8_t currSprPixelState = ((spriteRow & (0b10000000 >> j))  >> (7-j));
+						if(chip8->displayFB[dispIndex] && currSprPixelState){
+							chip8->V[0xF] = 1;
+						}
+						chip8->displayFB[dispIndex] ^= currSprPixelState;
 				}
 			}
-
 			break;
 		}
 		case 0xE:
@@ -265,7 +270,13 @@ int chip8_execute(chip8_t* chip8){
 			if(nibble3 == 0 && nibble4 == 7){
 				chip8->V[nibble2] = chip8->DT;
 			} else if(nibble3 == 0 && nibble4 == 0xA){
-				return -1;
+				for(int i = 0; i < 16; i++){
+					if(keyboardState[i]){
+						chip8->V[nibble2] = i;
+						break;
+					}
+				}
+				chip8->PC -= 2;
 			} else if(nibble3 == 1 && nibble4 == 0x5){
 				chip8->DT = chip8->V[nibble2];
 			} else if(nibble3 == 1 && nibble4 == 8){
@@ -280,9 +291,11 @@ int chip8_execute(chip8_t* chip8){
 				chip8->memory[chip8->I+1] = chip8->V[nibble2]/10%10;
 				chip8->memory[chip8->I+2] = chip8->V[nibble2]%10;
 			} else if(nibble3 == 5 && nibble4 == 5){
-				memcpy((void*)&chip8->memory[chip8->I], (void*)chip8->V, 16);
+				memcpy((void*)&chip8->memory[chip8->I], (void*)chip8->V, nibble2+1);
+				chip8->I += nibble2+1;
 			} else if(nibble3 == 6 && nibble4 == 5){
-				memcpy((void*)chip8->V, (void*)&chip8->memory[chip8->I], 16);
+				memcpy((void*)chip8->V, (void*)&chip8->memory[chip8->I], nibble2+1);
+				chip8->I += nibble2+1;
 			} else {
 				return -1;
 			}
@@ -292,36 +305,26 @@ int chip8_execute(chip8_t* chip8){
 			return -1;
 	}
 
-	// Subtract 1 from DT/ST
-	usleep(16660);
-	if(chip8->DT > 0) chip8->DT--;
-	if(chip8->ST > 0) chip8->ST--;
-	
+	secondsStop = clock();
+
+	totalSeconds += (secondsStop - secondsStart) / CLOCKS_PER_SEC;
+
+	if(totalSeconds >= 0.0016){
+		totalSeconds = 0;		
+
+		// Subtract 1 from DT/ST
+		if(chip8->DT > 0) chip8->DT--;
+
+		//TODO: sound.
+
+		if(chip8->ST > 0) chip8->ST--;
+
+		chip8_display_update(chip8);
+	}
+
 	chip8->PC += 2;
 	
 	return 0;
-}
-
-void chip8_display_update(chip8_t* chip8){
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-	SDL_RenderClear(renderer);
-
-	SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
-
-	SDL_Rect rect;
-
-	for(int i = 0; i < 32; i++){
-		for(int j = 0; j < 64; j++){
-			if(chip8->displayFB[i*64 + j]){
-				rect.x = j*4;
-				rect.y = i*4;
-				rect.h = rect.w = 4;
-				SDL_RenderFillRect(renderer, &rect);
-			}
-		}
-	}
-
-	SDL_RenderPresent(renderer);
 }
 
 chip8_t* chip8_init(int argc, char** argv){
@@ -351,9 +354,9 @@ int main(int argc, char** argv){
 		fprintf(stderr, "Failed to initialize SDL!\n");
 		SDL_Quit();
 		return 1;
-	}	
+	}
 
-	window = SDL_CreateWindow("Emul8tor", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 64*4, 32*4, SDL_WINDOW_SHOWN);
+	window = SDL_CreateWindow("Emul8tor", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 64*8, 32*8, SDL_WINDOW_SHOWN);
 	if(window == NULL){
 		fprintf(stderr, "Could not create SDL window!\n");
 		SDL_Quit();
@@ -508,9 +511,7 @@ int main(int argc, char** argv){
 			}
 
 			quit = true;
-		}
-
-		chip8_display_update(chip8);
+		}	
 	}
 	
 	free(chip8);
