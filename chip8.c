@@ -1,4 +1,7 @@
+#include <SDL2/SDL_video.h>
 #include <bits/time.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -49,18 +52,42 @@ SDL_Window* window;
 SDL_Renderer* renderer;
 
 int chip8_prepare_memory(chip8_t* chip8, const char* rompath){
+	// Copy the system font into memory, starting at address 0
 	memcpy((void*)chip8->memory, (void*)buildinFont, 80);
 
-	int rom = open(rompath, 0);
-	if(rom < 0) {fprintf(stderr, "Cound not find specified ROM.\n"); return -1;}
+	// ROM Loading process...
+	
+	// Make sure the user provided a file.
+	struct stat romStat;
+	if(stat(rompath, &romStat) != 0){
+		fprintf(stderr, "Cant stat ROM file: %s.\n", strerror(errno));
+		return -1;
+	}
+	
+	if(S_ISDIR(romStat.st_mode)){
+		fprintf(stderr, "ROM must be a file, not a directory.\n");
+		return -1;
+	}
 
-	size_t romSize = lseek(rom, 0, SEEK_END);
-	if(romSize < 0) return -1;
+	// Open the ROM file and make sure it fits in memory.
+	int romfd = open(rompath, 0);
+	if(romfd < 0){
+		fprintf(stderr, "Cound not open ROM: %s.\n", strerror(errno)); 
+		return -1;
+	}
 
-	if(romSize > 0x1000 - 0x200) {fprintf(stderr, "Specified ROM is too large.\n"); return -1;}
+	size_t romSize = romStat.st_size;
 
-	if(lseek(rom, 0, SEEK_SET) < 0) return -1;
-	if(read(rom, (void*)&(chip8->memory[0x200]), romSize) < 0) return -1;
+	if(romSize > 0x1000 - 0x200){
+		fprintf(stderr, "ROM is too large. Max size is 2048 bytes.\n"); 
+		return -1;
+	}
+
+	// Copy ROM contents to memory.
+	if(read(romfd, (void*)&(chip8->memory[0x200]), romSize) < 0){
+		fprintf(stderr, "Could not copy the ROM contents to memory: %s.\n", strerror(errno));
+		return -1;
+	}
 
 	return 0;
 }
@@ -75,11 +102,14 @@ void chip8_display_update(chip8_t* chip8){
 	for(int i = 0; i < 32; i++){
 		for(int j = 0; j < 64; j++){
 			if(chip8->displayFB[i*64 + j]){
-				rect.x = j*8; rect.y = i*8; rect.h = rect.w = 8;
+				rect.x = j*8; 			// 
+				rect.y = i*8; 			// Match the 1:8 pixel ratio
+				rect.h = rect.w = 8; 	//
 				SDL_RenderFillRect(renderer, &rect);
 			}
 		}
 	}
+
 	SDL_RenderPresent(renderer);
 }
 
@@ -97,6 +127,7 @@ int chip8_execute(chip8_t* chip8){
 				chip8->PC = chip8->stack[chip8->SP] + 2;
 				return 0;
 			} else if(nibble3 == 0xE){
+				// Clear the framebuffer.
 				for(int i = 0; i < 32*64; i++) chip8->displayFB[i] = 0;
 			}
 			break;
@@ -120,32 +151,56 @@ int chip8_execute(chip8_t* chip8){
 			chip8->V[nibble2] = ((nibble3 << 4) | (nibble4));
 			break;
 		case 7:
-			if(chip8->V[nibble2] + ((nibble3 << 4) | (nibble4)) > 256) chip8->V[nibble2] = ((nibble3 << 4) | (nibble4)) - (255-chip8->V[nibble2]) - 1;
-			else chip8->V[nibble2] = chip8->V[nibble2] + ((nibble3 << 4) | (nibble4));
+			if(chip8->V[nibble2] + ((nibble3 << 4) | (nibble4)) > 256) chip8->V[nibble2] = ((nibble3 << 4) | (nibble4)) - (255-chip8->V[nibble2]) - 1; // Calculate overflow value
+			else chip8->V[nibble2] += ((nibble3 << 4) | (nibble4));
 			break;
 		case 8:
-			if(nibble4 == 0) chip8->V[nibble2] = chip8->V[nibble3];
-			else if(nibble4 == 1) {chip8->V[nibble2] |= chip8->V[nibble3]; chip8->V[0xF] = 0;}
-			else if(nibble4 == 2) {chip8->V[nibble2] &= chip8->V[nibble3]; chip8->V[0xF] = 0;}
-			else if(nibble4 == 3) {chip8->V[nibble2] ^= chip8->V[nibble3]; chip8->V[0xF] = 0;}
-			else if(nibble4 == 4){
-				if(chip8->V[nibble2] + chip8->V[nibble3] > 256) {chip8->V[nibble2] = chip8->V[nibble3] - (255-chip8->V[nibble2]) - 1; chip8->V[0xF] = 1;}
-				else {chip8->V[nibble2] = chip8->V[nibble2] + chip8->V[nibble3];chip8->V[0xF] = 0;}
+			if(nibble4 == 0){ 
+				chip8->V[nibble2] = chip8->V[nibble3];
+			} else if(nibble4 == 1){
+				chip8->V[nibble2] |= chip8->V[nibble3];
+				chip8->V[0xF] = 0;
+			} else if(nibble4 == 2){
+				chip8->V[nibble2] &= chip8->V[nibble3];
+				chip8->V[0xF] = 0;
+			} else if(nibble4 == 3){
+				chip8->V[nibble2] ^= chip8->V[nibble3];
+				chip8->V[0xF] = 0;
+			} else if(nibble4 == 4){
+				if(chip8->V[nibble2] + chip8->V[nibble3] > 256){
+					chip8->V[nibble2] = chip8->V[nibble3] - (255-chip8->V[nibble2]) - 1;
+					chip8->V[0xF] = 1;
+				} else {
+					chip8->V[nibble2] = chip8->V[nibble2] + chip8->V[nibble3];
+					chip8->V[0xF] = 0;
+				}
 			} else if(nibble4 == 5){
-				if(chip8->V[nibble2] >= chip8->V[nibble3]) {chip8->V[nibble2] -= chip8->V[nibble3]; chip8->V[0xF] = 1;}
-				else {chip8->V[nibble2] = 0x100 - (chip8->V[nibble3] - chip8->V[nibble2]); chip8->V[0xF] = 0;}
+				if(chip8->V[nibble2] >= chip8->V[nibble3]){
+					chip8->V[nibble2] -= chip8->V[nibble3]; 
+					chip8->V[0xF] = 1;
+				} else {
+					chip8->V[nibble2] = 0x100 - (chip8->V[nibble3] - chip8->V[nibble2]);
+					chip8->V[0xF] = 0;
+				}
 			} else if(nibble4 == 6){
 				uint8_t lsb = chip8->V[nibble3] & 1;
 				chip8->V[nibble2] = chip8->V[nibble3]/2;
 				chip8->V[0xF] = lsb;
 			} else if(nibble4 == 7){
-				if(chip8->V[nibble3] >= chip8->V[nibble2]) {chip8->V[nibble2] = chip8->V[nibble3] - chip8->V[nibble2]; chip8->V[0xF] = 1;}
-				else {chip8->V[nibble2] = 0x100 - (chip8->V[nibble2] - chip8->V[nibble3]);chip8->V[0xF] = 0;}
+				if(chip8->V[nibble3] >= chip8->V[nibble2]){
+					chip8->V[nibble2] = chip8->V[nibble3] - chip8->V[nibble2];
+					chip8->V[0xF] = 1;
+				} else {
+					chip8->V[nibble2] = 0x100 - (chip8->V[nibble2] - chip8->V[nibble3]);
+					chip8->V[0xF] = 0;
+				}
 			} else if(nibble4 == 0xE){
 				uint8_t msb = ((chip8->V[nibble3] >> 7) & 1);
 				chip8->V[nibble2] = chip8->V[nibble3] * 2;
 				chip8->V[0xF] = msb;
-			} else return -1;	
+			} else {
+				return -1;	
+			}
 			break;
 		case 9:
 			if(chip8->V[nibble2] != chip8->V[nibble3]) chip8->PC += 2;
@@ -208,17 +263,27 @@ int chip8_execute(chip8_t* chip8){
 					}	
 				}
 				return 0;
-			} else if(nibble3 == 1 && nibble4 == 0x5) chip8->DT = chip8->V[nibble2];
-			else if(nibble3 == 1 && nibble4 == 8) chip8->ST = chip8->V[nibble2];
-			else if(nibble3 == 1 && nibble4 == 0xE) chip8->I += chip8->V[nibble2];
-			else if(nibble3 == 2 && nibble4 == 9) chip8->I = 5*(chip8->V[nibble2] & 0xF);
-			else if(nibble3 == 3 && nibble4 == 3){
+			} else if(nibble3 == 1 && nibble4 == 0x5){
+				chip8->DT = chip8->V[nibble2];
+			} else if(nibble3 == 1 && nibble4 == 8){
+				chip8->ST = chip8->V[nibble2];
+			} else if(nibble3 == 1 && nibble4 == 0xE){
+				chip8->I += chip8->V[nibble2];
+			} else if(nibble3 == 2 && nibble4 == 9){
+				chip8->I = 5*(chip8->V[nibble2] & 0xF);
+			} else if(nibble3 == 3 && nibble4 == 3){
 				chip8->memory[chip8->I] = chip8->V[nibble2]/100%10;
 				chip8->memory[chip8->I+1] = chip8->V[nibble2]/10%10;
 				chip8->memory[chip8->I+2] = chip8->V[nibble2]%10;
-			} else if(nibble3 == 5 && nibble4 == 5) {memcpy((void*)&chip8->memory[chip8->I], (void*)chip8->V, nibble2+1); chip8->I += nibble2+1;}
-			else if(nibble3 == 6 && nibble4 == 5) {memcpy((void*)chip8->V, (void*)&chip8->memory[chip8->I], nibble2+1); chip8->I += nibble2+1;}
-			else return -1;
+			} else if(nibble3 == 5 && nibble4 == 5){
+				memcpy((void*)&chip8->memory[chip8->I], (void*)chip8->V, nibble2+1);
+				chip8->I += nibble2+1;
+			} else if(nibble3 == 6 && nibble4 == 5){
+				memcpy((void*)chip8->V, (void*)&chip8->memory[chip8->I], nibble2+1);
+				chip8->I += nibble2+1;
+			} else {
+				return -1;
+			}
 			break;
 		default:
 			return -1;
@@ -229,26 +294,50 @@ int chip8_execute(chip8_t* chip8){
 }
 
 chip8_t* chip8_init(int argc, char** argv){
-	if(argc < 2) {fprintf(stderr, "No ROM specified.\n"); return NULL;}
-	else if(argc > 2) {fprintf(stderr, "Too many arguments.\n"); return NULL;}
+	if(argc < 2){
+		fprintf(stderr, "No ROM specified.\n");
+		return NULL;
+	} else if(argc > 2){
+		fprintf(stderr, "Too many arguments.\n");
+		return NULL;
+	}
 
 	chip8_t* chip8 = malloc(sizeof(chip8_t));
 	memset((void*)chip8, 0, sizeof(chip8_t));
 
 	chip8->PC = 0x200;
 
-	if(chip8_prepare_memory(chip8, argv[1]) != 0) {fprintf(stderr, "Failed to initialize memory image!\n"); return NULL;}
-	else return chip8;
+	if(chip8_prepare_memory(chip8, argv[1]) != 0){
+		fprintf(stderr, "Failed to initialize memory image!\n"); 
+		return NULL;
+	} else {
+		return chip8;
+	}
 }
 
 int main(int argc, char** argv){
-	if(SDL_Init(SDL_INIT_EVERYTHING) != 0) {fprintf(stderr, "Failed to initialize SDL!\n"); SDL_Quit(); return 1;}
+	if(SDL_Init(SDL_INIT_EVERYTHING) != 0){
+		fprintf(stderr, "Failed to initialize SDL!\n"); 
+		SDL_Quit(); 
+		return 1;
+	}
 
+	// Because on most modern displays a 64x32 image would be very small and thus very hard to look at,
+	// We make the dispay 8 times bigger.
 	window = SDL_CreateWindow("Emul8tor", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 64*8, 32*8, SDL_WINDOW_SHOWN);
-	if(window == NULL) {fprintf(stderr, "Could not create SDL window!\n"); SDL_Quit(); return 1;}
+	if(window == NULL){
+		fprintf(stderr, "Could not create SDL window!\n");
+		SDL_Quit();
+		return 1;
+	}
 	
 	renderer = SDL_CreateRenderer(window, -1, 0);
-	if(renderer == NULL) {fprintf(stderr, "Could not create SDL renderer!\n"); SDL_Quit(); return 1;}
+	if(renderer == NULL) {
+		fprintf(stderr, "Could not create SDL renderer!\n");
+		SDL_DestroyWindow(window);
+		SDL_Quit();
+		return 1;
+	}
 
 	chip8_t* chip8 = chip8_init(argc, argv);
 	if(chip8 == NULL) return 1;
@@ -259,6 +348,7 @@ int main(int argc, char** argv){
 	SDL_Event event;
 	bool quit = false;
 	while(!quit){
+		// Use the system clock for timing.
 		clock_gettime(CLOCK_MONOTONIC, &startTime);
 
 		for(size_t i = 0; i < CYCLES_PER_TIMER_TICK; i++){
@@ -321,10 +411,14 @@ int main(int argc, char** argv){
  
 		sleepTime = TIME_BETWEEN_TICKS - (endTime.tv_sec - startTime.tv_sec) * 1000000 + (endTime.tv_nsec - startTime.tv_nsec) / 1000;
 
+		// Do nothing for the duration of the remaining time quota.
 		if(sleepTime > 0) usleep(sleepTime);
 
+		// Decrement the delay and sound timers.
 		if(chip8->DT > 0) chip8->DT--;
 		if(chip8->ST > 0) chip8->ST--;
+
+		// Update the display. This happens once every 60th of a second on the original CHIP-8 interpreter.
 		chip8_display_update(chip8);	
 	}
 	

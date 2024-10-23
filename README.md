@@ -1,12 +1,12 @@
 # Emul8tor
 
-Emul8tor is an emulator for the CHIP-8 architecture, written in only 335 lines of code.
+Emul8tor is an emulator for the CHIP-8 architecture.
 
-The goal of this project is to teach myself (and others, perhaps, but beware of the lack of comments and messy code, since another one of my goals for this emulator was to attempt to write it in as few lines of code as possible without cheating too much.) about the basics of emulation.
+The goal of this project is to teach myself (and others, perhaps,) about the basics of emulation.
 
 ## Features
 
-Besides the beeper (which will probably never be added), the emulator is pretty accurate. I've tested it with about 15 ROMs, including an 8 ROM test suite, and they all worked fine.
+Besides the beeper (which is not yet implemented), the emulator is pretty accurate. I've tested it with about 15 ROMs, including an 8 ROM test suite, and they all worked fine.
 
 ## Building and Running
 
