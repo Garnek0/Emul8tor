@@ -52,18 +52,12 @@ int chip8_prepare_memory(chip8_t* chip8, const char* rompath){
 	memcpy((void*)chip8->memory, (void*)buildinFont, 80);
 
 	int rom = open(rompath, 0);
-	if(rom < 0){
-		fprintf(stderr, "Cound not find specified ROM.\n");
-		return -1;
-	}
+	if(rom < 0) {fprintf(stderr, "Cound not find specified ROM.\n"); return -1;}
 
 	size_t romSize = lseek(rom, 0, SEEK_END);
 	if(romSize < 0) return -1;
 
-	if(romSize > 0x1000 - 0x200){
-		fprintf(stderr, "Specified ROM is too large.\n");
-		return -1;
-	}
+	if(romSize > 0x1000 - 0x200) {fprintf(stderr, "Specified ROM is too large.\n"); return -1;}
 
 	if(lseek(rom, 0, SEEK_SET) < 0) return -1;
 	if(read(rom, (void*)&(chip8->memory[0x200]), romSize) < 0) return -1;
@@ -86,7 +80,6 @@ void chip8_display_update(chip8_t* chip8){
 			}
 		}
 	}
-
 	SDL_RenderPresent(renderer);
 }
 
@@ -111,9 +104,8 @@ int chip8_execute(chip8_t* chip8){
 			chip8->PC = ((nibble2 << 8) | (nibble3 << 4) | (nibble4));
 			return 0;
 		case 2:
-			chip8->stack[chip8->SP] = chip8->PC;
+			chip8->stack[chip8->SP] = chip8->PC; chip8->SP++;
 			chip8->PC = ((nibble2 << 8) | (nibble3 << 4) | (nibble4));
-			chip8->SP++;
 			return 0;
 		case 3:
 			if(chip8->V[nibble2] == ((nibble3 << 4) | (nibble4))) chip8->PC += 2;
@@ -132,52 +124,28 @@ int chip8_execute(chip8_t* chip8){
 			else chip8->V[nibble2] = chip8->V[nibble2] + ((nibble3 << 4) | (nibble4));
 			break;
 		case 8:
-			if(nibble4 == 0){
-				chip8->V[nibble2] = chip8->V[nibble3];
-			} else if(nibble4 == 1){
-				chip8->V[nibble2] |= chip8->V[nibble3];
-				chip8->V[0xF] = 0; 
-			} else if(nibble4 == 2){
-				chip8->V[nibble2] &= chip8->V[nibble3];
-				chip8->V[0xF] = 0; 
-			} else if(nibble4 == 3){
-				chip8->V[nibble2] ^= chip8->V[nibble3];
-				chip8->V[0xF] = 0;
-			} else if(nibble4 == 4){
-				if(chip8->V[nibble2] + chip8->V[nibble3] > 256){
-					chip8->V[nibble2] = chip8->V[nibble3] - (255-chip8->V[nibble2]) - 1;
-					chip8->V[0xF] = 1;
-				} else {
-					chip8->V[nibble2] = chip8->V[nibble2] + chip8->V[nibble3];
-					chip8->V[0xF] = 0;
-				}
+			if(nibble4 == 0) chip8->V[nibble2] = chip8->V[nibble3];
+			else if(nibble4 == 1) {chip8->V[nibble2] |= chip8->V[nibble3]; chip8->V[0xF] = 0;}
+			else if(nibble4 == 2) {chip8->V[nibble2] &= chip8->V[nibble3]; chip8->V[0xF] = 0;}
+			else if(nibble4 == 3) {chip8->V[nibble2] ^= chip8->V[nibble3]; chip8->V[0xF] = 0;}
+			else if(nibble4 == 4){
+				if(chip8->V[nibble2] + chip8->V[nibble3] > 256) {chip8->V[nibble2] = chip8->V[nibble3] - (255-chip8->V[nibble2]) - 1; chip8->V[0xF] = 1;}
+				else {chip8->V[nibble2] = chip8->V[nibble2] + chip8->V[nibble3];chip8->V[0xF] = 0;}
 			} else if(nibble4 == 5){
-				if(chip8->V[nibble2] >= chip8->V[nibble3]){
-					chip8->V[nibble2] -= chip8->V[nibble3];
-					chip8->V[0xF] = 1;
-				} else {
-					chip8->V[nibble2] = 0x100 - (chip8->V[nibble3] - chip8->V[nibble2]);
-					chip8->V[0xF] = 0;
-				}
+				if(chip8->V[nibble2] >= chip8->V[nibble3]) {chip8->V[nibble2] -= chip8->V[nibble3]; chip8->V[0xF] = 1;}
+				else {chip8->V[nibble2] = 0x100 - (chip8->V[nibble3] - chip8->V[nibble2]); chip8->V[0xF] = 0;}
 			} else if(nibble4 == 6){
 				uint8_t lsb = chip8->V[nibble3] & 1;
 				chip8->V[nibble2] = chip8->V[nibble3]/2;
 				chip8->V[0xF] = lsb;
 			} else if(nibble4 == 7){
-				if(chip8->V[nibble3] >= chip8->V[nibble2]){
-					chip8->V[nibble2] = chip8->V[nibble3] - chip8->V[nibble2];
-					chip8->V[0xF] = 1;
-				} else {
-					chip8->V[nibble2] = 0x100 - (chip8->V[nibble2] - chip8->V[nibble3]);
-					chip8->V[0xF] = 0;
-				}	
+				if(chip8->V[nibble3] >= chip8->V[nibble2]) {chip8->V[nibble2] = chip8->V[nibble3] - chip8->V[nibble2]; chip8->V[0xF] = 1;}
+				else {chip8->V[nibble2] = 0x100 - (chip8->V[nibble2] - chip8->V[nibble3]);chip8->V[0xF] = 0;}
 			} else if(nibble4 == 0xE){
 				uint8_t msb = ((chip8->V[nibble3] >> 7) & 1);
 				chip8->V[nibble2] = chip8->V[nibble3] * 2;
 				chip8->V[0xF] = msb;
-			} else {
-				return -1;	
-			}
+			} else return -1;	
 			break;
 		case 9:
 			if(chip8->V[nibble2] != chip8->V[nibble3]) chip8->PC += 2;
@@ -195,16 +163,14 @@ int chip8_execute(chip8_t* chip8){
 			chip8->V[nibble2] = (random & ((nibble3 << 4) | (nibble4)));
 			break;
 		case 0xD:
-			size_t x = chip8->V[nibble2];
-			size_t y = chip8->V[nibble3];
+			size_t x = chip8->V[nibble2], y = chip8->V[nibble3];
 
 			chip8->V[0xF] = 0;
 
 			for(int i = 0; i < nibble4; i++){
 				uint8_t spriteRow = chip8->memory[chip8->I+i];
 				for(int j = 0; j < 8; j++){
-					int dispIndex = ((x + j)%64) + (((y + i)%32)*64);
-					uint8_t currSprPixelState = ((spriteRow & (0b10000000 >> j))  >> (7-j));
+					int dispIndex = ((x + j)%64) + (((y + i)%32)*64), currSprPixelState = ((spriteRow & (0b10000000 >> j))  >> (7-j));
 
 					if(chip8->displayFB[dispIndex] && currSprPixelState) chip8->V[0xF] = 1;
 					chip8->displayFB[dispIndex] ^= currSprPixelState;
@@ -221,9 +187,8 @@ int chip8_execute(chip8_t* chip8){
 			}
 			break;
 		case 0xF:
-			if(nibble3 == 0 && nibble4 == 7){
-				chip8->V[nibble2] = chip8->DT;
-			} else if(nibble3 == 0 && nibble4 == 0xA){
+			if(nibble3 == 0 && nibble4 == 7) chip8->V[nibble2] = chip8->DT;
+			else if(nibble3 == 0 && nibble4 == 0xA){
 				static int key = 0;
 				static bool keyPressDetected = false;
 
@@ -251,74 +216,45 @@ int chip8_execute(chip8_t* chip8){
 				chip8->memory[chip8->I] = chip8->V[nibble2]/100%10;
 				chip8->memory[chip8->I+1] = chip8->V[nibble2]/10%10;
 				chip8->memory[chip8->I+2] = chip8->V[nibble2]%10;
-			} else if(nibble3 == 5 && nibble4 == 5){
-				memcpy((void*)&chip8->memory[chip8->I], (void*)chip8->V, nibble2+1);
-				chip8->I += nibble2+1;
-			} else if(nibble3 == 6 && nibble4 == 5){
-				memcpy((void*)chip8->V, (void*)&chip8->memory[chip8->I], nibble2+1);
-				chip8->I += nibble2+1;
-			} else {
-				return -1;
-			}
+			} else if(nibble3 == 5 && nibble4 == 5) {memcpy((void*)&chip8->memory[chip8->I], (void*)chip8->V, nibble2+1); chip8->I += nibble2+1;}
+			else if(nibble3 == 6 && nibble4 == 5) {memcpy((void*)chip8->V, (void*)&chip8->memory[chip8->I], nibble2+1); chip8->I += nibble2+1;}
+			else return -1;
 			break;
 		default:
 			return -1;
 	}
-
 	chip8->PC += 2;
 	
 	return 0;
 }
 
 chip8_t* chip8_init(int argc, char** argv){
-	if(argc < 2){
-		fprintf(stderr, "No ROM specified.\n");
-		return NULL;
-	} else if(argc > 2){
-		fprintf(stderr, "Too many arguments.\n");
-		return NULL;
-	}
+	if(argc < 2) {fprintf(stderr, "No ROM specified.\n"); return NULL;}
+	else if(argc > 2) {fprintf(stderr, "Too many arguments.\n"); return NULL;}
 
 	chip8_t* chip8 = malloc(sizeof(chip8_t));
 	memset((void*)chip8, 0, sizeof(chip8_t));
 
 	chip8->PC = 0x200;
 
-	if(chip8_prepare_memory(chip8, argv[1]) != 0){
-		fprintf(stderr, "Failed to initialize memory image!\n");
-		return NULL;
-	}
-
-	return chip8;
+	if(chip8_prepare_memory(chip8, argv[1]) != 0) {fprintf(stderr, "Failed to initialize memory image!\n"); return NULL;}
+	else return chip8;
 }
 
 int main(int argc, char** argv){
-	if(SDL_Init(SDL_INIT_EVERYTHING) != 0){
-		fprintf(stderr, "Failed to initialize SDL!\n");
-		SDL_Quit();
-		return 1;
-	}
+	if(SDL_Init(SDL_INIT_EVERYTHING) != 0) {fprintf(stderr, "Failed to initialize SDL!\n"); SDL_Quit(); return 1;}
 
 	window = SDL_CreateWindow("Emul8tor", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 64*8, 32*8, SDL_WINDOW_SHOWN);
-	if(window == NULL){
-		fprintf(stderr, "Could not create SDL window!\n");
-		SDL_Quit();
-		return 1;
-	}
-
+	if(window == NULL) {fprintf(stderr, "Could not create SDL window!\n"); SDL_Quit(); return 1;}
+	
 	renderer = SDL_CreateRenderer(window, -1, 0);
-	if(renderer == NULL){
-		fprintf(stderr, "Could not create SDL renderer!\n");
-		SDL_DestroyWindow(window);
-		SDL_Quit();
-		return 1;
-	}
+	if(renderer == NULL) {fprintf(stderr, "Could not create SDL renderer!\n"); SDL_Quit(); return 1;}
 
 	chip8_t* chip8 = chip8_init(argc, argv);
 	if(chip8 == NULL) return 1;
 
 	struct timespec startTime, endTime;
-	size_t elapsedTime, sleepTime;
+	time_t sleepTime;
 
 	SDL_Event event;
 	bool quit = false;
@@ -382,9 +318,8 @@ int main(int argc, char** argv){
 		}
 
 		clock_gettime(CLOCK_MONOTONIC, &endTime);
-
-		elapsedTime = (endTime.tv_sec - startTime.tv_sec) * 1000000 + (endTime.tv_nsec - startTime.tv_nsec) / 1000;
-		sleepTime = TIME_BETWEEN_TICKS - elapsedTime;
+ 
+		sleepTime = TIME_BETWEEN_TICKS - (endTime.tv_sec - startTime.tv_sec) * 1000000 + (endTime.tv_nsec - startTime.tv_nsec) / 1000;
 
 		if(sleepTime > 0) usleep(sleepTime);
 

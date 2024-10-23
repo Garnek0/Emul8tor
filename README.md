@@ -1,6 +1,6 @@
 # Emul8tor
 
-Emul8tor is an emulator for the CHIP-8 architecture, written in only 400 lines of code.
+Emul8tor is an emulator for the CHIP-8 architecture, written in only 335 lines of code.
 
 The goal of this project is to teach myself (and others, perhaps, but beware of the lack of comments and messy code, since another one of my goals for this emulator was to attempt to write it in as few lines of code as possible without cheating too much.) about the basics of emulation.
 
