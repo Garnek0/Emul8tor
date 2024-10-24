@@ -6,7 +6,7 @@ The goal of this project is to teach myself (and others, perhaps,) about the bas
 
 ## Features
 
-Besides the beeper (which is not yet implemented), the emulator is pretty accurate. I've tested it with about 15 ROMs, including an 8 ROM test suite, and they all worked fine.
+The emulator is pretty accurate. I've tested it with about 15 ROMs, including an 8 ROM test suite, and they all worked fine.
 
 ## Building and Running
 
