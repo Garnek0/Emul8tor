@@ -208,6 +208,8 @@ chip8_t* chip8_init(int argc, char** argv){
 }
 
 int main(int argc, char** argv){
+	printf("Emul8tor v1.0 by Garnek0.\n");
+
 	if(SDL_Init(SDL_INIT_EVENTS) != 0){
 		fprintf(stderr, "Failed to initialize SDL events!\n"); 
 		SDL_Quit(); 
@@ -232,43 +234,43 @@ int main(int argc, char** argv){
 				else if(event.type == SDL_KEYDOWN){
 					SDL_KeyboardEvent kbEvent = event.key;
 					switch(kbEvent.keysym.sym){
-						case SDLK_0: keyboardState[0] = 1; break;
+						case SDLK_x: keyboardState[0] = 1; break;
 						case SDLK_1: keyboardState[1] = 1; break;
 						case SDLK_2: keyboardState[2] = 1; break;
 						case SDLK_3: keyboardState[3] = 1; break;
-						case SDLK_4: keyboardState[4] = 1; break;
-						case SDLK_5: keyboardState[5] = 1; break;
-						case SDLK_6: keyboardState[6] = 1; break;
-						case SDLK_7: keyboardState[7] = 1; break;
-						case SDLK_8: keyboardState[8] = 1; break;
-						case SDLK_9: keyboardState[9] = 1; break;
-						case SDLK_a: keyboardState[10] = 1; break;
-						case SDLK_b: keyboardState[11] = 1; break;
-						case SDLK_c: keyboardState[12] = 1; break;
-						case SDLK_d: keyboardState[13] = 1; break;
-						case SDLK_e: keyboardState[14] = 1; break;
-						case SDLK_f: keyboardState[15] = 1; break;
+						case SDLK_q: keyboardState[4] = 1; break;
+						case SDLK_w: keyboardState[5] = 1; break;
+						case SDLK_e: keyboardState[6] = 1; break;
+						case SDLK_a: keyboardState[7] = 1; break;
+						case SDLK_s: keyboardState[8] = 1; break;
+						case SDLK_d: keyboardState[9] = 1; break;
+						case SDLK_z: keyboardState[10] = 1; break;
+						case SDLK_c: keyboardState[11] = 1; break;
+						case SDLK_4: keyboardState[12] = 1; break;
+						case SDLK_r: keyboardState[13] = 1; break;
+						case SDLK_f: keyboardState[14] = 1; break;
+						case SDLK_v: keyboardState[15] = 1; break;
 						default: break;
 					}
 				} else if(event.type == SDL_KEYUP){
 					SDL_KeyboardEvent kbEvent = event.key;
 					switch(kbEvent.keysym.sym){
-						case SDLK_0: keyboardState[0] = 0; break;
+						case SDLK_x: keyboardState[0] = 0; break;
 						case SDLK_1: keyboardState[1] = 0; break;
 						case SDLK_2: keyboardState[2] = 0; break;
 						case SDLK_3: keyboardState[3] = 0; break;
-						case SDLK_4: keyboardState[4] = 0; break;
-						case SDLK_5: keyboardState[5] = 0; break;
-						case SDLK_6: keyboardState[6] = 0; break;
-						case SDLK_7: keyboardState[7] = 0; break;
-						case SDLK_8: keyboardState[8] = 0; break;
-						case SDLK_9: keyboardState[9] = 0; break;
-						case SDLK_a: keyboardState[10] = 0; break;
-						case SDLK_b: keyboardState[11] = 0; break;
-						case SDLK_c: keyboardState[12] = 0; break;
-						case SDLK_d: keyboardState[13] = 0; break;
-						case SDLK_e: keyboardState[14] = 0; break;
-						case SDLK_f: keyboardState[15] = 0; break;
+						case SDLK_q: keyboardState[4] = 0; break;
+						case SDLK_w: keyboardState[5] = 0; break;
+						case SDLK_e: keyboardState[6] = 0; break;
+						case SDLK_a: keyboardState[7] = 0; break;
+						case SDLK_s: keyboardState[8] = 0; break;
+						case SDLK_d: keyboardState[9] = 0; break;
+						case SDLK_z: keyboardState[10] = 0; break;
+						case SDLK_c: keyboardState[11] = 0; break;
+						case SDLK_4: keyboardState[12] = 0; break;
+						case SDLK_r: keyboardState[13] = 0; break;
+						case SDLK_f: keyboardState[14] = 0; break;
+						case SDLK_v: keyboardState[15] = 0; break;
 						default: break;
 
 					}
