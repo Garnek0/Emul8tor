@@ -13,9 +13,6 @@ The emulator is pretty accurate. I've tested it with a bunch of ROMs, including 
 ### Linux
 In the root directory, run the following commands:
 ```
-mkdir build
-cd build
-cmake ..
 make
 ./emul8tor path/to/your/rom.ch8
 ```
